@@ -1,4 +1,4 @@
-# Anonym_Candidature
+# Anonym_Presentation_Project
 Quantitative Trading Pipeline
 
 A sophisticated algorithmic trading system implementing multi-factor signal processing with dynamic leverage optimization and liquidity-aware position sizing, designed for automated portfolio management across multiple brokers.
