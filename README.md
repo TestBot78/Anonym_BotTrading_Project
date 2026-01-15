@@ -223,6 +223,11 @@ MSc Finance & Data Analytics Candidate
 
 ## License
 
+© 2026 Gonzi.  
+This project is provided for educational and personal use only.
+Commercial use requires explicit permission from the author.
+
+
 Educational and personal use only. Not financial advice.
 
 ---
