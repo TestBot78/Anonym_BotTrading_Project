@@ -73,16 +73,16 @@ This pipeline implements a **hybrid multi-factor trading system** that combines:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              TRADING SYSTEM                                  │
+│                              TRADING SYSTEM                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐         │
-│  │   DATA LAYER    │    │  SIGNAL LAYER   │    │   RISK LAYER    │         │
-│  ├─────────────────┤    ├─────────────────┤    ├─────────────────┤         │
-│  │ DualBrokerAdapter│   │ EnhancedPipeline │   │  RiskMonitor    │         │
-│  │ IBKRAdapter     │    │ HybridPipeline  │    │ StatefulTailHedge│        │
-│  │ Alpaca API      │    │ QuantSignal ×5  │    │ PositionSizer   │         │
-│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘         │
+│                                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
+│  │   DATA LAYER    │    │  SIGNAL LAYER   │    │   RISK LAYER    │          │
+│  ├─────────────────┤    ├─────────────────┤    ├─────────────────┤          │
+│  │DualBrokerAdapter│    │EnhancedPipeline │    │  RiskMonitor    │          │
+│  │ IBKRAdapter     │    │ HybridPipeline  │    │StatefulTailHedge│          │
+│  │ Alpaca API      │    │ QuantSignal ×5  │    │ PositionSizer   │          │
+│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘          │
 │           │                      │                      │                   │
 │           └──────────────────────┼──────────────────────┘                   │
 │                                  │                                          │
@@ -93,7 +93,7 @@ This pipeline implements a **hybrid multi-factor trading system** that combines:
 │                    │   AlertManager            │                            │
 │                    │   TradingDatabase         │                            │
 │                    └───────────────────────────┘                            │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
