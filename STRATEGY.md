@@ -231,7 +231,7 @@ The system demonstrates proficiency in quantitative finance, software engineerin
 
 **Author**: Anonym_  
 **Institution**: ESSCA School of Management  
-**Program**: MSc Finance & Data Analytics  
+**Program**: MSc Finance & Data Analytics candidate
 **Date**: January 2026
 
 ### Intellectual Property Notice
