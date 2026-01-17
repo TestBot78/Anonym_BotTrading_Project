@@ -6,16 +6,16 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        PAPER TRADING ENGINE                          │
-│                        (paper_trading.py)                            │
+│                        PAPER TRADING ENGINE                         │
+│                        (paper_trading.py)                           │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐ │
-│  │  TradingConfig  │  │  TradingDatabase │  │    AlertManager     │ │
-│  │  - API keys     │  │  - SQLite3       │  │  - Email/Slack      │ │
-│  │  - Risk limits  │  │  - Market data   │  │  - Log levels       │ │
-│  │  - Symbols      │  │  - Positions     │  │                     │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────┘ │
-│                                                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
+│  │  TradingConfig  │  │  TradingDatabase │  │    AlertManager    │  │
+│  │  - API keys     │  │  - SQLite3       │  │  - Email/Slack     │  │
+│  │  - Risk limits  │  │  - Market data   │  │  - Log levels      │  │
+│  │  - Symbols      │  │  - Positions     │  │                    │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
+│                                                                     │
 │  ┌─────────────────────────────────────────────────────────────────┐│
 │  │                    PaperTradingEngine                           ││
 │  │  - calculate_signals()      → Uses real SPY benchmark           ││
@@ -27,35 +27,35 @@
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     DUAL BROKER ADAPTER                              │
-│                   (dual_broker_adapter.py)                           │
+│                     DUAL BROKER ADAPTER                             │
+│                   (dual_broker_adapter.py)                          │
 ├─────────────────────────────────────────────────────────────────────┤
 │  ┌───────────────────────┐    ┌───────────────────────────────────┐ │
-│  │     ALPACA (Data)     │    │        IBKR (Execution)          │ │
-│  │  - get_bars()         │    │  - submit_order()                │ │
-│  │  - get_latest_bar()   │    │  - list_positions()              │ │
-│  │  - get_clock()        │    │  - get_account()                 │ │
-│  │  - SPY benchmark      │    │  - NO PDT RESTRICTIONS           │ │
+│  │     ALPACA (Data)     │    │        IBKR (Execution)           │ │
+│  │  - get_bars()         │    │  - submit_order()                 │ │
+│  │  - get_latest_bar()   │    │  - list_positions()               │ │
+│  │  - get_clock()        │    │  - get_account()                  │ │
+│  │  - SPY benchmark      │    │  - NO PDT RESTRICTIONS            │ │
 │  └───────────────────────┘    └───────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    SIGNAL PIPELINE                                   │
-│               (enhanced_pipeline.py)                                 │
+│                    SIGNAL PIPELINE                                  │
+│               (enhanced_pipeline.py)                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │              EnhancedProductionPipeline                      │   │
-│  │  - run_full_pipeline_vectorized()                           │   │
-│  │  - get_performance_metrics()                                │   │
-│  └─────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │              EnhancedProductionPipeline                     │    │
+│  │  - run_full_pipeline_vectorized()                           │    │
+│  │  - get_performance_metrics()                                │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 │                              │                                      │
-│       ┌──────────────────────┼──────────────────────┐              │
-│       ▼                      ▼                      ▼              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────┐ │
-│  │Volatility│  │ Momentum │  │ TailRisk │  │   Beta   │  │Carry │ │
-│  │  Signal  │  │  Signal  │  │  Signal  │  │  Signal  │  │Signal│ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────┘ │
+│       ┌──────────────────────┼──────────────────────┐               │
+│       ▼                      ▼                      ▼               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────┐   │
+│  │Volatility│  │ Momentum │  │ TailRisk │  │   Beta   │  │Carry │   │
+│  │  Signal  │  │  Signal  │  │  Signal  │  │  Signal  │  │Signal│   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
