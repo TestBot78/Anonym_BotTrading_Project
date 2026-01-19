@@ -20,7 +20,7 @@ class IBKRAdapter:
     Compatible avec paper_trading.py sans modifications
     """
     
-    def __init__(self, host='127.0.0.1', port=7497, client_id=1):
+    def __init__(self, host='IBKR IP', port= XXXX, client_id=1):
         self.ib = IB()
         self.host = host
         self.port = port
@@ -426,4 +426,5 @@ class IBKRAdapter:
         
         return Clock(is_open, now_et)
         
+
         return Clock()
