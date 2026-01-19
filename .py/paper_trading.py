@@ -500,8 +500,8 @@ class PaperTradingEngine:
             alpaca_key=self.config.alpaca_api_key,
             alpaca_secret=self.config.alpaca_api_secret,
             alpaca_base_url=self.config.alpaca_base_url,
-            ibkr_host='127.0.0.1',
-            ibkr_port=7497,
+            ibkr_host='IBKR IP',
+            ibkr_port=XXXX,
             ibkr_client_id=1
         )
 
@@ -1707,4 +1707,5 @@ if __name__ == "__main__":
         print("\nQuick start:")
         print("  1. python paper_trading.py init")
         print("  2. Edit trading_config.json (add your Alpaca keys)")
+
         print("  3. python paper_trading.py run")
