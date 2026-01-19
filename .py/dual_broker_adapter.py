@@ -20,7 +20,7 @@ class DualBrokerAdapter:
     """
     
     def __init__(self, alpaca_key, alpaca_secret, alpaca_base_url='https://paper-api.alpaca.markets',
-                 ibkr_host='127.0.0.1', ibkr_port=7497, ibkr_client_id=1):
+                 ibkr_host='IBKR IP', ibkr_port=XXXX, ibkr_client_id=1):
         
         self.logger = logging.getLogger('DualBroker')
         
@@ -204,4 +204,5 @@ class DualBrokerAdapter:
         try:
             self.disconnect()
         except:
+
             pass
