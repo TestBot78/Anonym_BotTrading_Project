@@ -179,14 +179,14 @@ class HybridWeightedPipeline:
         self.logger.info(f'Hourly composite: {composite_hourly:.4f}')
         return signals
     
-    def calculate_hybrid_weighted_signal(self, symbol: str, market_return=None) -> Dict:
+    def calculate_hybrid_weighted_signal(self, symbol: str, market_returns=None) -> Dict:
         self.logger.info(f'HYBRID WEIGHTED CALCULATION: {symbol}')
         daily_bars = self.get_daily_data(symbol)
         hourly_bars = self.get_hourly_data(symbol)
         if len(daily_bars) < 252 or len(hourly_bars) < 100:
             self.logger.error('Insufficient data')
             return {}
-        daily_result = self.calculate_daily_signals_weighted(daily_bars)
+        daily_result = self.calculate_daily_signals_weighted(daily_bars, market_returns=market_returns)
         if not daily_result:
             self.logger.error('Daily calculation failed')
             return {}
