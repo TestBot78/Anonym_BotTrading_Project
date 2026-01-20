@@ -5,11 +5,11 @@
   "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"],
   "rebalance_frequency_minutes": 60,
   "min_trade_size": 1,
-  "max_position_size": 0.2,
+  "max_position_size": 0.4,
   "max_daily_loss": -0.05,
   "max_drawdown": -0.15,
-  "min_leverage": 1.0,
-  "max_leverage": 3.0,
+  "min_leverage": 2.0,
+  "max_leverage": 3.5,
   "check_interval_seconds": 30,
   "reconciliation_interval_minutes": 5,
   "email_alerts": false,
@@ -25,3 +25,4 @@
   "log_level": "INFO"
 
 }
+
