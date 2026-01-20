@@ -48,7 +48,7 @@ class TradingConfig:
     # Trading parameters
     symbols: List[str] = None
     rebalance_frequency_minutes: int = 30
-    min_trade_size: int = 1
+    min_trade_size: int = 10
     max_position_size: float = 0.40
     
     # Risk limits
@@ -583,7 +583,7 @@ class PaperTradingEngine:
             for symbol in self.config.symbols:
                 # Calculate hybrid weighted signal
                 hybrid_result = self.hybrid_weighted.calculate_hybrid_weighted_signal(symbol, 
-                market_return=spy_returns  # ✅ Pass real benchmark
+                market_returns=spy_returns  # ✅ Pass real benchmark
                 )
             
                 
@@ -675,9 +675,16 @@ class PaperTradingEngine:
             composite = signal_dict.get('composite', 0)
             confidence = signal_dict.get('confidence', 0.5)
             
+            # ✅ FIX 1: Confidence gate
+            MIN_CONFIDENCE = 0.40
+            if confidence < MIN_CONFIDENCE:
+                self.logger.info(f'{symbol}: Confidence too low ({confidence:.1%}), FLAT')
+                targets[symbol] = 0
+                target_exposures[symbol] = 0
+                continue
+            
             # Get current price AND volume data
             try:
-                # Get recent bars for volume calculation
                 bars = self.api.get_bars(symbol, tradeapi.TimeFrame.Day, limit=20)
                 
                 self.logger.info(f'{symbol}: Got {len(bars)} bars')
@@ -690,13 +697,10 @@ class PaperTradingEngine:
                 
                 price = bars['close'].iloc[-1]
                 
-                # ✅ NOUVEAU: Calculate ADV (Average Daily Volume)
-                adv_20 = bars['volume'].mean()  # 20-day average
-                
-                # ✅ NOUVEAU: Max shares based on liquidity (10% of ADV)
+                adv_20 = bars['volume'].mean()
                 max_shares_liquidity = int(adv_20 * 0.20)
                 
-                self.logger.debug(f'{symbol}: ADV={adv_20:,.0f}, Max shares (10% ADV)={max_shares_liquidity:,}')
+                self.logger.debug(f'{symbol}: ADV={adv_20:,.0f}, Max shares (20% ADV)={max_shares_liquidity:,}')
                 
             except Exception as e:
                 self.logger.warning(f'Could not get price/volume for {symbol}: {e}')
@@ -706,14 +710,13 @@ class PaperTradingEngine:
             
             # Signal strength [-1, +1]
             signal_strength = float(np.tanh(composite * 2))
-
-            # ✅ Dead zone - signal trop faible = pas de position
+            
+            # ✅ FIX 3: Dead zone
             if abs(signal_strength) < 0.10:
                 self.logger.info(f"   {symbol}: Signal faible ({signal_strength:.3f}) → FLAT")
                 targets[symbol] = 0
                 target_exposures[symbol] = 0
                 continue
-
             
             # Adjust by confidence
             adjusted_strength = signal_strength * confidence
@@ -730,7 +733,7 @@ class PaperTradingEngine:
             # Target notional
             target_notional = equity * signed_leverage * self.config.max_position_size
 
-            max_notional_per_position = equity * 0.50  # Max 50% de l'equity par position
+            max_notional_per_position = equity * 0.50
             target_notional = np.clip(target_notional, -max_notional_per_position, max_notional_per_position)
             
             # Convert to shares
@@ -744,7 +747,7 @@ class PaperTradingEngine:
                 price
             )
             
-            # ✅ NOUVEAU: Apply BOTH portfolio cap AND liquidity cap
+            # Apply BOTH portfolio cap AND liquidity cap
             shares_capped = int(np.clip(
                 shares_from_signal, 
                 -min(max_shares_portfolio, max_shares_liquidity),
@@ -771,6 +774,41 @@ class PaperTradingEngine:
                 f"\n      Max (portfolio):  {max_shares_portfolio:,} shares"
                 f"\n      Target Shares:    {shares_capped:,} shares"
             )
+        
+        # ========== FIN BOUCLE FOR ==========
+        
+        # ✅ FIX 5: Concentration cap
+        MAX_CONCENTRATION = 0.40
+        total_exposure = sum(target_exposures.values())
+        
+        if total_exposure > 0:
+            for symbol in list(targets.keys()):
+                if target_exposures[symbol] == 0:
+                    continue
+                concentration = target_exposures[symbol] / total_exposure
+                if concentration > MAX_CONCENTRATION:
+                    self.logger.warning(
+                        f'⚠️ {symbol}: Concentration too high ({concentration:.1%}), '
+                        f'capping to {MAX_CONCENTRATION:.0%}'
+                    )
+                    scale_factor = MAX_CONCENTRATION / concentration
+                    targets[symbol] = int(targets[symbol] * scale_factor)
+                    target_exposures[symbol] = target_exposures[symbol] * scale_factor
+
+        # ✅ FIX 6: Net exposure alert
+        MAX_NET_EXPOSURE = 0.50
+        
+        long_exposure = sum(exp for sym, exp in target_exposures.items() if targets[sym] > 0)
+        short_exposure = sum(exp for sym, exp in target_exposures.items() if targets[sym] < 0)
+        net_exposure_pct = (long_exposure - short_exposure) / equity if equity > 0 else 0
+        
+        self.logger.info(f"\n📊 EXPOSURE BREAKDOWN:")
+        self.logger.info(f"   Long:  ${long_exposure:,.0f}")
+        self.logger.info(f"   Short: ${short_exposure:,.0f}")
+        self.logger.info(f"   Net:   {net_exposure_pct:+.1%} of equity")
+        
+        if abs(net_exposure_pct) > MAX_NET_EXPOSURE:
+            self.logger.warning(f'⚠️ Net exposure too high ({net_exposure_pct:+.1%} > ±{MAX_NET_EXPOSURE:.0%})')
         
         # Calculate total target exposure
         total_target_exposure = sum(target_exposures.values())
@@ -922,7 +960,40 @@ class PaperTradingEngine:
                 return
             
             self.log_estimated_costs(target_positions)
+
+            # ✅ FIX 4: Skip rebalance if total turnover too small
+            MIN_TURNOVER_PCT = 0.05  # 5% minimum portfolio turnover
             
+            account_check = self.api.get_account()
+            equity = float(account_check.equity)
+            
+            # Get current positions
+            current_pos_check = {p.symbol: int(p.qty) if p.side != 'short' else -int(p.qty) 
+                                for p in self.api.list_positions()}
+            
+            total_turnover = 0
+            for symbol, target_qty in target_positions.items():
+                current_qty = current_pos_check.get(symbol, 0)
+                delta = abs(target_qty - current_qty)
+                try:
+                    latest = self.api.get_latest_bar(symbol)
+                    price = float(latest.c)
+                    total_turnover += delta * price
+                except:
+                    pass
+            
+            turnover_pct = total_turnover / equity if equity > 0 else 0
+            
+            self.logger.info(f"\n📊 TURNOVER CHECK:")
+            self.logger.info(f"   Total Turnover: ${total_turnover:,.0f} ({turnover_pct:.2%})")
+            self.logger.info(f"   Min Required:   {MIN_TURNOVER_PCT:.0%}")
+            
+            if turnover_pct < MIN_TURNOVER_PCT:
+                self.logger.info(f"   ⏭️  Turnover too low, skipping rebalance")
+                return []
+            else:
+                self.logger.info(f"   ✅ Turnover OK, proceeding")
+
             # ✅ PRE-CHECK: Buying Power
             account = self.api.get_account()
             buying_power = float(account.buying_power)
@@ -1015,6 +1086,17 @@ class PaperTradingEngine:
                 if abs(delta) < self.config.min_trade_size:
                     self.logger.info(f"      Delta too small, skipping")
                     continue
+                
+                # ✅ FIX: Minimum notional trade size
+                MIN_NOTIONAL = 5000  # $5,000 minimum per trade
+                try:
+                    price = float(self.api.get_latest_bar(symbol).c)
+                    trade_notional = abs(delta) * price
+                    if trade_notional < MIN_NOTIONAL:
+                        self.logger.info(f"      Trade notional too small (${trade_notional:,.0f} < ${MIN_NOTIONAL:,}), skipping")
+                        continue
+                except:
+                    pass  # If can't get price, proceed anyway
                 
                 # Determine side
                 if delta > 0:
@@ -1276,8 +1358,8 @@ class PaperTradingEngine:
     def reconcile_positions(self):
         """Reconcile positions"""
         try:
-            broker_positions = {p.symbol: int(p.qty) 
-                              for p in self.api.list_positions()}
+            broker_positions = {p.symbol: int(p.qty) if p.side == 'long' else -int(p.qty)
+                  for p in self.api.list_positions()}
             
             self.logger.info("POSITION RECONCILIATION")
             
@@ -1579,8 +1661,16 @@ class PaperTradingEngine:
                 
                 if not clock.is_open:
                     next_open = clock.next_open
-                    self.logger.info(f"Market closed. Next open: {next_open}")
-                    time.sleep(300)
+                    now = datetime.now(next_open.tzinfo)
+                    wait_seconds = (next_open - now).total_seconds()
+                    
+                    if wait_seconds > 0:
+                        hours = int(wait_seconds // 3600)
+                        minutes = int((wait_seconds % 3600) // 60)
+                        self.logger.info(f"⏳ Market closed. Next open: {next_open.strftime('%Y-%m-%d %H:%M %Z')}")
+                        self.logger.info(f"   Waiting {hours}h {minutes}m until market open...")
+                        time.sleep(wait_seconds)
+                        self.logger.info("🔔 Market OPEN! Starting trading...")
                     continue
                 
                 # Portfolio status
@@ -1616,8 +1706,6 @@ class PaperTradingEngine:
                     if signals:
                         target_positions = self.calculate_target_positions(signals)
 
-
-                        self.logger.warning("No signals calculated, skipping rebalance")
                         leverage_ok = self.check_and_reduce_leverage()
 
                         if leverage_ok:
