@@ -332,8 +332,8 @@ Each factor undergoes continuous validation:
 
 | Signal Confidence | Leverage | Rationale |
 |-------------------|----------|-----------|
-| 0% (no signal) | 2.5x | Minimum exposure |
-| 50% (moderate) | 3.0x | Proportional scaling |
+| 0% (no signal) | 2.0x | Minimum exposure |
+| 50% (moderate) | 2.75x | Proportional scaling |
 | 100% (high conviction) | 3.5x | Maximum allowed |
 
 **Leverage Formula**:
