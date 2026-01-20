@@ -48,17 +48,17 @@ class TradingConfig:
     # Trading parameters
     symbols: List[str] = None
     rebalance_frequency_minutes: int = 30
-    min_trade_size: int = 10
-    max_position_size: float = 0.30
+    min_trade_size: int = 1
+    max_position_size: float = 0.40
     
     # Risk limits
     max_daily_loss: float = -0.05
     max_drawdown: float = -0.15
-    min_leverage: float = 1.0
-    max_leverage: float = 1.5
+    min_leverage: float = 2.0
+    max_leverage: float = 3.5
     
     # Monitoring
-    check_interval_seconds: int = 60
+    check_interval_seconds: int = 30
     reconciliation_interval_minutes: int = 5
     
     # Alerts
@@ -500,8 +500,8 @@ class PaperTradingEngine:
             alpaca_key=self.config.alpaca_api_key,
             alpaca_secret=self.config.alpaca_api_secret,
             alpaca_base_url=self.config.alpaca_base_url,
-            ibkr_host='IBKR IP',
-            ibkr_port=XXXX,
+            ibkr_host='127.0.0.1',
+            ibkr_port=7497,
             ibkr_client_id=1
         )
 
@@ -680,6 +680,8 @@ class PaperTradingEngine:
                 # Get recent bars for volume calculation
                 bars = self.api.get_bars(symbol, tradeapi.TimeFrame.Day, limit=20)
                 
+                self.logger.info(f'{symbol}: Got {len(bars)} bars')
+
                 if len(bars) < 20:
                     self.logger.warning(f'Not enough volume data for {symbol}, skipping')
                     targets[symbol] = 0
@@ -692,7 +694,7 @@ class PaperTradingEngine:
                 adv_20 = bars['volume'].mean()  # 20-day average
                 
                 # ✅ NOUVEAU: Max shares based on liquidity (10% of ADV)
-                max_shares_liquidity = int(adv_20 * 0.10)
+                max_shares_liquidity = int(adv_20 * 0.20)
                 
                 self.logger.debug(f'{symbol}: ADV={adv_20:,.0f}, Max shares (10% ADV)={max_shares_liquidity:,}')
                 
@@ -704,6 +706,14 @@ class PaperTradingEngine:
             
             # Signal strength [-1, +1]
             signal_strength = float(np.tanh(composite * 2))
+
+            # ✅ Dead zone - signal trop faible = pas de position
+            if abs(signal_strength) < 0.10:
+                self.logger.info(f"   {symbol}: Signal faible ({signal_strength:.3f}) → FLAT")
+                targets[symbol] = 0
+                target_exposures[symbol] = 0
+                continue
+
             
             # Adjust by confidence
             adjusted_strength = signal_strength * confidence
@@ -719,6 +729,9 @@ class PaperTradingEngine:
             
             # Target notional
             target_notional = equity * signed_leverage * self.config.max_position_size
+
+            max_notional_per_position = equity * 0.50  # Max 50% de l'equity par position
+            target_notional = np.clip(target_notional, -max_notional_per_position, max_notional_per_position)
             
             # Convert to shares
             shares_from_signal = int(target_notional / price)
@@ -981,7 +994,7 @@ class PaperTradingEngine:
             current_positions = {}
             
             for p in alpaca_positions:
-                qty = int(p.qty)
+                qty = abs(int(p.qty))
                 if p.side == 'short':
                     qty = -qty
                 current_positions[p.symbol] = qty
@@ -1010,7 +1023,53 @@ class PaperTradingEngine:
                 else:
                     side = 'sell'
                     qty = abs(delta)
-                
+
+                # ========================================
+                # ✅ FIX 3: CHECK MARGIN AVANT ORDRE
+                # ========================================
+                try:
+                    account_check = self.api.get_account()
+                    equity = float(account_check.equity)
+                    
+                    # Get current total exposure
+                    positions_check = self.api.list_positions()
+                    current_exposure = sum(abs(float(p.market_value)) for p in positions_check)
+                    
+                    # Estimate exposure after this order
+                    try:
+                        latest = self.api.get_latest_bar(symbol)
+                        price = float(latest.c)
+                    except:
+                        bars = self.api.get_bars(symbol, tradeapi.TimeFrame.Day, limit=1)
+                        if len(bars) == 0:
+                            self.logger.warning(f"      Cannot get price for {symbol}, skipping")
+                            continue
+                        price = float(bars['close'].iloc[-1])
+                    
+                    order_value = qty * price
+                    
+                    # If opening/increasing position
+                    if (side == 'buy' and current_qty >= 0) or (side == 'sell' and current_qty <= 0):
+                        new_exposure = current_exposure + order_value
+                    else:
+                        # Closing/reducing position
+                        current_pos_value = abs(current_qty * price)
+                        new_exposure = current_exposure - min(order_value, current_pos_value)
+                    
+                    new_leverage = new_exposure / equity if equity > 0 else 0
+                    
+                    # Skip order if it would cause excessive leverage
+                    if new_leverage > self.config.max_leverage * 1.05:  # 5% buffer
+                        self.logger.warning(
+                            f"      ⚠️  SKIPPING {symbol}: Would cause leverage {new_leverage:.2f}x > "
+                            f"{self.config.max_leverage * 1.05:.2f}x"
+                        )
+                        continue
+                        
+                except Exception as e:
+                    self.logger.warning(f"      Could not check leverage for {symbol}: {e}")
+                # ========================================
+
                 self.logger.info(f"      Submitting: {side.upper()} {qty} {symbol}")
                 
                 try:
@@ -1087,36 +1146,76 @@ class PaperTradingEngine:
                             'commission': 0
                         })
                     
+                
                 except Exception as e:
-                    error_msg = str(e)
+                    error_msg = str(e).lower()
                     
-                    if 'insufficient buying power' in error_msg.lower():
-                        self.logger.error(f"      ❌ STILL insufficient buying power for {symbol}")
-                        self.logger.error(f"         This order will be skipped")
-                        # Continue with other symbols
+                    # Check for margin/insufficient funds errors
+                    margin_keywords = ['margin', 'available funds', 'error 201', 'insufficient']
+                    is_margin_error = any(keyword in error_msg for keyword in margin_keywords)
+                    
+                    if is_margin_error:
+                        self.logger.error(f"      ❌ MARGIN ERROR for {symbol}")
+                        self.logger.error(f"         Error: {e}")
+                        self.logger.error(f"         Account has insufficient margin")
+                        self.logger.error(f"         🛑 STOPPING order submission to protect account")
+                        
+                        # Send alert
+                        try:
+                            self.alert_manager.alert(
+                                "MARGIN ERROR - Order Submission Stopped",
+                                f"Failed to submit order for {symbol} due to insufficient margin.\n"
+                                f"Current leverage may be too high.\n"
+                                f"Error: {e}",
+                                level="ERROR"
+                            )
+                        except:
+                            pass  # Alert manager might not be available
+                        
+                        # STOP submitting more orders to avoid further margin issues
+                        break
+                    
+                    elif 'insufficient buying power' in error_msg:
+                        self.logger.error(f"      ❌ Insufficient buying power for {symbol}")
+                        self.logger.error(f"         Skipping this order and continuing with others")
                         continue
+                    
                     else:
                         self.logger.error(f"      ❌ Order failed: {e}")
                         import traceback
                         self.logger.error(traceback.format_exc())
+                        continue
             
             # Wait for fills
-            if orders_executed:
-                self.wait_for_fills(orders_executed, timeout=30)
-            
+            self.logger.info(f"\n⏳ Waiting for order fills...")
+            time.sleep(5)
+
             # Check fills
             try:
                 recent_orders = self.api.list_orders(status='all', limit=30)
+                filled_count = 0
+                
                 for order in recent_orders:
                     if order.status == 'filled':
+                        # ✅ FILTRE: Ignore les ordres avec qty = 0
+                        filled_qty = float(order.filled_qty)
+                        
+                        if filled_qty == 0:
+                            continue  # Skip ghost orders
+                        
                         order_time = order.filled_at or order.submitted_at
                         if order_time:
                             time_diff = (datetime.now(order_time.tzinfo) - order_time).total_seconds()
                             if time_diff < 120:  # Last 2 minutes
                                 self.logger.info(
-                                    f"   ✅ FILLED: {order.side.upper()} {order.filled_qty} {order.symbol} "
+                                    f"   ✅ FILLED: {order.side.upper()} {filled_qty:.0f} {order.symbol} "
                                     f"@ ${float(order.filled_avg_price):.2f}"
                                 )
+                                filled_count += 1
+                
+                if filled_count == 0:
+                    self.logger.info("   No recent fills")
+                    
             except Exception as e:
                 self.logger.warning(f"Could not fetch order status: {e}")
             
@@ -1707,5 +1806,4 @@ if __name__ == "__main__":
         print("\nQuick start:")
         print("  1. python paper_trading.py init")
         print("  2. Edit trading_config.json (add your Alpaca keys)")
-
         print("  3. python paper_trading.py run")
