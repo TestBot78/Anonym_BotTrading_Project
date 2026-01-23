@@ -1,6 +1,6 @@
 {
-  "alpaca_api_key": "PKUCJCMRY3NOSBOT7IA362PY5U",
-  "alpaca_api_secret": "7bLyEZ3HKoNkC3xPvySgMi5wSYNeqfaiaJRdxehchE32",
+  "alpaca_api_key": "API KEY",
+  "alpaca_api_secret": "SECRET API",
   "alpaca_base_url": "https://paper-api.alpaca.markets",
   "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "JPM", "BAC", "GS", "MS", "XOM", "CVX", "LMT", "RTX", "NOC", "GD", "BA", "JNJ", "UNH", "PFE", "MRK", "ABBV"],
   "rebalance_frequency_minutes": 60,
@@ -24,3 +24,4 @@
   "log_file": "paper_trading_ibkr.log",
   "log_level": "INFO"
 }
+
