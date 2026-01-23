@@ -2,7 +2,7 @@
 
 A sophisticated algorithmic trading system implementing multi-factor signal processing with dynamic leverage optimization and liquidity-aware position sizing, designed for automated portfolio management across multiple brokers.
 
-> **Project Focus**: This project was built to understand how quantitative signals behave once realistic execution, liquidity and risk constraints are applied, with a strong focus on risk management rather than pure alpha maximization.
+> **Project Focus**: This project was built to understand how quantitative signals behave once realistic execution, liquidity and risk constraints are applied, with a strong focus on risk management rather than pure alpha maximization. It is a crisis focused algorithm designed to prevent huge market crisis.
 
 ---
 
