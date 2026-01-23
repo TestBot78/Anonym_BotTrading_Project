@@ -12,3 +12,4 @@
 *Backtest: 2016-01-21 to 2026-01-20 | 21 symbols (equal weight)*
 
 ![Performance Summary](figures/performance_summary.png)
+
